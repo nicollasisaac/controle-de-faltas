@@ -1,0 +1,36 @@
+# — Python —
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.pdb
+.Python
+env/
+venv/
+.venv/
+dist/
+build/
+*.egg-info/
+
+# — IDEs/Editors —
+.vscode/
+.idea/
+*.sw?
+*.sublime-*
+
+# — Tests —
+.pytest_cache/
+
+# — Migrations —
+backend/migrations/versions/
+
+# — dotenv —
+*.env
+.env.*
+
+# — OS —
+.DS_Store
+Thumbs.db
+
+# — Docker —
+*.log
