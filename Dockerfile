@@ -1,25 +1,27 @@
 # Imagem base enxuta
 FROM python:3.12-slim
 
-# Evita prompts & mantém logs visíveis
+# Desabilita buffers + não guarda cache do pip
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-# Instala dependências do sistema mínimas
+# Dependências mínimas de build (psycopg2, etc.)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential gcc netcat && \
+      build-essential gcc && \
     rm -rf /var/lib/apt/lists/*
 
-# Copia apenas o requirements e instala (camada de cache)
+# ───── etapa de dependências ────────────────────────────────
 WORKDIR /app
-COPY requirements.txt .
+
+# requirements.txt está dentro de backend/
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copia o restante do código
-COPY . .
+# ───── copia o código-fonte ─────────────────────────────────
+COPY backend ./backend
 
-# Porta exposta no contêiner
+# Porta exposta
 EXPOSE 8000
 
-# Comando padrão (Render detecta automaticamente)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Comando default: roda a API que está em backend/main.py
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

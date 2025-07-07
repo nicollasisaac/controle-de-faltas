@@ -1,0 +1,33 @@
+# ──────────────────────────────────────────────────────────────
+#  render.yaml – IaC para Render.com
+# ──────────────────────────────────────────────────────────────
+services:
+  - name: sstm-api
+    type: web
+    env: docker            # Render usa o Dockerfile da raiz
+    plan: free             # troque se precisar de +recursos
+    autoDeploy: true
+
+    envVars:
+      # string de conexão vem do banco criado abaixo
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sstm-db
+          property: connectionString
+
+      # as demais você preenche no painel (ou via CLI)
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_EMAIL
+        value: admin@sstm.app
+      - key: ADMIN_PWD_HASH
+        sync: false
+
+    healthCheckPath: /docs   # Render chama GET /docs até receber 200
+
+databases:
+  - name: sstm-db
+    databaseName: postgres
+    user: postgres
+    plan: free              # 0,1 vCPU • 256 MB • 10 GB
+    ipAllowList: []         # vazio = acesso só pelos serviços do Render
