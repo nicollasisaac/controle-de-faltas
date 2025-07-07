@@ -1,0 +1,41 @@
+# --- ROOT ---------------------------------------------------
+.git/
+.gitignore
+render.yaml
+*.md
+*.png
+*.jpg
+*.gif
+
+# dependências locais / IDE
+.vscode/
+.idea/
+.env
+*.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# node / front (se existir)
+node_modules/
+dist/
+.next/
+out/
+
+# cache / artefatos de testes
+.coverage
+htmlcov/
+*.sqlite3
+*.db
+*.log
+
+# virtualenvs
+.venv/
+env/
+venv/
+
+# só copiamos a pasta backend e os dois manifests
+!backend/**
+!requirements.txt
+!Dockerfile
