@@ -1,8 +1,11 @@
-import os, datetime
-from typing import List, Optional
+# backend/main.py
+import os
+import datetime
+from typing import List, Optional, Dict
 
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware          # ① ← NOVO
 from jose import jwt, JWTError
 from passlib.hash import bcrypt
 from sqlmodel import (
@@ -18,6 +21,7 @@ class Group(SQLModel, table=True):
     persons: List["Person"] = Relationship(back_populates="group")
     events:  List["Event"]  = Relationship(back_populates="group")
 
+
 class Person(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     full_name: str
@@ -27,6 +31,7 @@ class Person(SQLModel, table=True):
     group:     Group = Relationship(back_populates="persons")
     attendance: List["Attendance"] = Relationship(back_populates="person")
 
+
 class Event(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
@@ -35,26 +40,33 @@ class Event(SQLModel, table=True):
     group:    Group = Relationship(back_populates="events")
     attendance: List["Attendance"] = Relationship(back_populates="event")
 
+
 class Attendance(SQLModel, table=True):
     person_id: int = Field(foreign_key="person.id", primary_key=True)
     event_id:  int = Field(foreign_key="event.id",  primary_key=True)
-    status: str = "ABSENT"                     # PRESENT | ABSENT
+    status: str = "ABSENT"               # PRESENT | ABSENT
     person: Person = Relationship(back_populates="attendance")
     event:  Event  = Relationship(back_populates="attendance")
 
-# ─────────────────────────────── Auth ───────────────────────────────── #
+# ─────────────────────────────── Auth ──────────────────────────────── #
 load_dotenv()
+
 ALGORITHM = "HS256"
-SECRET    = os.getenv("JWT_SECRET")
+SECRET    = os.getenv("JWT_SECRET") or "change-me"
 security  = HTTPBearer()
 
 def create_token() -> str:
-    payload = {"sub": "admin",
-               "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12)}
+    payload = {
+        "sub": "admin",
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=12)
+    }
     return jwt.encode(payload, SECRET, algorithm=ALGORITHM)
 
 def admin_login(email: str, password: str) -> str:
-    if email == os.getenv("ADMIN_EMAIL") and bcrypt.verify(password, os.getenv("ADMIN_PWD_HASH")):
+    if (
+        email == os.getenv("ADMIN_EMAIL")
+        and bcrypt.verify(password, os.getenv("ADMIN_PWD_HASH", ""))
+    ):
         return create_token()
     raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="bad credentials")
 
@@ -68,7 +80,18 @@ def admin_only(credentials: HTTPAuthorizationCredentials = Depends(security)):
 engine = create_engine(os.getenv("DATABASE_URL"), echo=False)
 SQLModel.metadata.create_all(engine)
 
-app = FastAPI(title="SSTM Attendance API", version="0.2.1")
+app = FastAPI(title="SSTM Attendance API", version="0.2.3")
+
+# ─────────── CORS ────────────
+# Em produção troque ["*"] pelos domínios do seu front, ex:
+# ["https://controle-faltas.vercel.app"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
 
 def get_session():
     with Session(engine) as session:
@@ -78,6 +101,7 @@ def get_session():
 ## AUTH
 @app.post("/login")
 def login(email: str, password: str):
+    """Retorna um JWT para as rotas protegidas."""
     return {"access_token": admin_login(email, password)}
 
 ## PUBLIC READ
@@ -85,32 +109,18 @@ def login(email: str, password: str):
 def list_groups(session: Session = Depends(get_session)):
     return session.exec(select(Group)).all()
 
-from typing import List, Dict
-from sqlmodel import select
-
-# ...
-
 @app.get("/groups/{gid}/summary")
 def summary(gid: int, session: Session = Depends(get_session)) -> List[Dict]:
     """
-    Retorna um resumo (presenças/faltas) do grupo `gid`.
-
-    Saída:
-        [
-            {"person_id": 1, "status": "PRESENT"},
-            {"person_id": 2, "status": "ABSENT"},
-            ...
-        ]
+    Resumo de presenças/faltas do grupo.
+    Saída: [{"person_id": 1, "status": "PRESENT"}, ...]
     """
     rows = session.exec(
         select(Attendance.person_id, Attendance.status)
         .join(Event)
         .where(Event.group_id == gid)
     ).all()
-
-    # Converte cada tupla em dicionário JSON-friendly
     return [{"person_id": pid, "status": st} for pid, st in rows]
-
 
 ## ADMIN CREATE
 @app.post("/groups", dependencies=[Depends(admin_only)])
